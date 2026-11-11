@@ -14,18 +14,67 @@ document.addEventListener("DOMContentLoaded", () => {
       activitiesList.innerHTML = "";
 
       // Populate activities list
+      while (activitySelect.options.length > 1) {
+        activitySelect.remove(1);
+      }
+
       Object.entries(activities).forEach(([name, details]) => {
         const activityCard = document.createElement("div");
         activityCard.className = "activity-card";
 
         const spotsLeft = details.max_participants - details.participants.length;
 
+        const participantsList = document.createElement("ul");
+        details.participants.forEach((participant) => {
+          const participantItem = document.createElement("li");
+
+          const participantEmail = document.createElement("span");
+          participantEmail.textContent = participant;
+          participantItem.appendChild(participantEmail);
+
+          const removeButton = document.createElement("button");
+          removeButton.type = "button";
+          removeButton.className = "participant-remove";
+          removeButton.textContent = "×";
+          removeButton.title = `Remove ${participant} from ${name}`;
+          removeButton.setAttribute("aria-label", `Remove ${participant} from ${name}`);
+          removeButton.addEventListener("click", async () => {
+            removeButton.disabled = true;
+            try {
+              const response = await fetch(
+                `/activities/${encodeURIComponent(name)}/signup?email=${encodeURIComponent(participant)}`,
+                { method: "DELETE" }
+              );
+              const result = await response.json();
+
+              if (!response.ok) {
+                throw new Error(result.detail || "Unable to remove participant");
+              }
+
+              await fetchActivities();
+            } catch (error) {
+              removeButton.disabled = false;
+              messageDiv.textContent = error.message || "Failed to remove participant. Please try again.";
+              messageDiv.className = "error";
+              messageDiv.classList.remove("hidden");
+              console.error("Error removing participant:", error);
+            }
+          });
+
+          participantItem.appendChild(removeButton);
+          participantsList.appendChild(participantItem);
+        });
+
         activityCard.innerHTML = `
           <h4>${name}</h4>
           <p>${details.description}</p>
           <p><strong>Schedule:</strong> ${details.schedule}</p>
           <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
+          <div class="participants">
+            <h5>Participants</h5>
+          </div>
         `;
+        activityCard.querySelector(".participants").appendChild(participantsList);
 
         activitiesList.appendChild(activityCard);
 
@@ -62,6 +111,7 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
+        await fetchActivities();
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
